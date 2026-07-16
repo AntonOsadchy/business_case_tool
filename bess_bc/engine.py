@@ -12,7 +12,7 @@ from typing import Optional
 
 import pandas as pd
 
-from bess_bc.finance import debt_schedule, excel_npv, irr, standard_npv
+from bess_bc.finance import debt_schedule, irr, standard_npv
 from bess_bc.inputs import BessInputs
 from bess_bc.soh import soh_series
 
@@ -121,8 +121,7 @@ class Summary:
     payback_years: Optional[float]
     payback_label: str
     irr: Optional[float]
-    npv_excel: float
-    npv_standard: float
+    npv: float
     wacc_pct: float
     cumulative_cash_flow_final: float
     horizon_years: int
@@ -143,15 +142,13 @@ def compute_summary(df: pd.DataFrame, inp: BessInputs) -> Summary:
 
     cashflow_series = nominal.tolist()
     irr_value = irr(cashflow_series)
-    npv_excel = excel_npv(inp.wacc_pct, cashflow_series)
-    npv_standard = standard_npv(inp.wacc_pct, cashflow_series)
+    npv_value = standard_npv(inp.wacc_pct, cashflow_series)
 
     return Summary(
         payback_years=payback_years,
         payback_label=payback_label,
         irr=irr_value,
-        npv_excel=npv_excel,
-        npv_standard=npv_standard,
+        npv=npv_value,
         wacc_pct=inp.wacc_pct,
         cumulative_cash_flow_final=cum.iloc[-1],
         horizon_years=inp.horizon_years,

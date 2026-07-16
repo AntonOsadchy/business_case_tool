@@ -59,8 +59,7 @@ def print_summary(summary, inp: BessInputs) -> None:
     print(f"Payback:                 {summary.payback_label}")
     irr_str = f"{summary.irr * 100:.2f}%" if summary.irr is not None else "N/A"
     print(f"IRR:                     {irr_str}")
-    print(f"NPV (Excel convention):  EUR {summary.npv_excel:,.2f}")
-    print(f"NPV (standard):          EUR {summary.npv_standard:,.2f}")
+    print(f"NPV:                     EUR {summary.npv:,.2f}")
     print(f"WACC (discount rate):    {summary.wacc_pct * 100:.2f}%")
     print(f"Cumulative cash flow @ year {summary.horizon_years}: EUR {summary.cumulative_cash_flow_final:,.2f}")
 

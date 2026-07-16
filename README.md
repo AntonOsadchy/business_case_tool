@@ -10,6 +10,34 @@ tab also has a Solar PV branch, but it is out of scope here.
 
 ## Setup
 
+### Option A: Docker (recommended, no local Python needed)
+
+Requires Docker and `make`.
+
+```bash
+make build
+make run
+```
+
+`make run` passes through any CLI flags via `ARGS`, and mounts the current
+directory into the container so file output (e.g. `--csv`) lands on your
+host filesystem:
+
+```bash
+make run ARGS="--bess-size-mw 5 --debt-share-pct 0.5 --csv results.csv"
+```
+
+Other targets:
+
+```bash
+make test       # run the pytest suite inside the container
+make validate   # validate against the source .xlsx inside the container
+make shell      # drop into a shell inside the container
+make clean      # remove the built image
+```
+
+### Option B: Local Python
+
 Requires Python 3.9+ and `pandas`.
 
 ```bash
@@ -27,6 +55,10 @@ bess-bc --help
 ```
 
 ## Usage
+
+The examples below use `python3 -m bess_bc.cli` directly (Option B). If
+you're using Docker (Option A), run the same thing via
+`make run ARGS="..."` instead.
 
 Run with all defaults (matches the BC tab's default scenario):
 
@@ -86,8 +118,7 @@ Running the tool prints:
 
 - **Payback** — the year cumulative cash flow turns non-negative (linearly interpolated within that year), or "No payback" if it never does within the horizon.
 - **IRR** — internal rate of return over the full nominal cash-flow series.
-- **NPV (Excel convention)** — the headline NPV, computed the same (slightly non-standard) way the source workbook does: see note below.
-- **NPV (standard)** — the same cash flows discounted the usual way (year 0 undiscounted), shown for reference.
+- **NPV** — standard net present value: year-0 cash flow undiscounted, years 1..N discounted by `(1+WACC)^t`.
 - A year-by-year table of revenue, costs, and cumulative cash flow (or every calculated column with `--full-table`).
 
 ## Validation against the source workbook
@@ -98,6 +129,8 @@ BESS.xlsx` (sheet `BC`, cells `C73`/`C74`/`C75`/`W70`/`AQ70`):
 
 ```bash
 python3 scripts/validate_against_excel.py
+# or, via Docker:
+make validate
 ```
 
 The same checks, plus a few extra scenarios (no-degradation, debt financing,
@@ -105,20 +138,29 @@ no-payback), are also in the pytest suite:
 
 ```bash
 python3 -m pytest tests/
+# or, via Docker:
+make test
 ```
 
-Both confirm the tool reproduces the workbook's cached Payback (≈9.87 years),
-IRR (≈7.35%), and NPV (≈€77,065) to about 10 significant digits under default
-inputs.
+Both confirm the tool reproduces the workbook's cached Payback (≈9.87 years)
+and IRR (≈7.35%) to about 10 significant digits under default inputs. NPV is
+checked too, but note the source workbook's cached NPV (≈€77,065) uses
+Excel's non-standard `NPV()` convention (see below) — the validation scripts
+convert to that convention internally via `bess_bc.finance.excel_npv` before
+comparing; the tool's own reported NPV (standard convention) is ≈€80,919 for
+the same default scenario.
 
 ## Modeling notes / known quirks (inherited from the source workbook)
 
-- **NPV convention**: Excel's `NPV()` function discounts *every* value in its
-  range, including the first one — so the source model effectively discounts
-  the year-0 cash flow by one extra period versus the textbook definition.
-  This tool replicates that convention as the headline number (fidelity to
-  the source model was the design goal) and also reports a standard NPV for
-  comparison.
+- **NPV convention**: the source workbook computes NPV as
+  `=NPV(D31, C69:AQ69)`, i.e. it passes Excel's `NPV()` function the *entire*
+  cash-flow range including year 0. Excel's `NPV()` discounts every value in
+  its range, including the first one, so this effectively discounts the
+  year-0 cash flow by one extra period versus the textbook definition (the
+  standard approach would be `C69 + NPV(D31, D69:AQ69)`, adding year 0 back
+  undiscounted). This tool reports the **standard** NPV, not this quirk;
+  `bess_bc.finance.excel_npv()` still exists internally so the validation
+  scripts can reproduce the source workbook's exact cached value.
 - **Recurring grid fee is not scaled by BESS size** — despite being labeled
   "€/MW/year", the fixed yearly grid fee is applied as a flat € amount
   regardless of `bess_size_mw`. This matches the source formula exactly.
@@ -144,6 +186,7 @@ inputs.
 ## Project layout
 
 ```
+Dockerfile / Makefile / .dockerignore   # Docker packaging (make build / make run)
 bess_bc/
 ├── inputs.py     # BessInputs dataclass (all model inputs + validation)
 ├── soh.py        # Battery State-of-Health degradation curve

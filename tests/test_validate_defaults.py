@@ -5,6 +5,7 @@ import openpyxl
 import pytest
 
 from bess_bc.engine import build_cashflow_table, compute_summary
+from bess_bc.finance import excel_npv
 from bess_bc.inputs import BessInputs
 
 XLSX_PATH = pathlib.Path(__file__).resolve().parent.parent / "Business CasecSolar PV and BESS.xlsx"
@@ -25,7 +26,12 @@ def test_default_inputs_match_excel(bc_sheet):
 
     assert math.isclose(summary.payback_years, bc_sheet["C73"].value, rel_tol=1e-4)
     assert math.isclose(summary.irr, bc_sheet["C74"].value, rel_tol=1e-6)
-    assert math.isclose(summary.npv_excel, bc_sheet["C75"].value, rel_tol=1e-6)
+
+    # The tool reports NPV in the standard convention; the source workbook's
+    # cached NPV uses Excel's =NPV() convention (year 0 discounted too), so
+    # convert before comparing.
+    npv_excel_convention = excel_npv(inp.wacc_pct, df["gross_profit_nominal"].tolist())
+    assert math.isclose(npv_excel_convention, bc_sheet["C75"].value, rel_tol=1e-6)
     assert math.isclose(df["cumulative_cash_flow"].iloc[20], bc_sheet["W70"].value, rel_tol=1e-6)
     assert math.isclose(df["cumulative_cash_flow"].iloc[40], bc_sheet["AQ70"].value, rel_tol=1e-6)
 

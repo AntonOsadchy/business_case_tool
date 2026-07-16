@@ -13,6 +13,7 @@ import openpyxl
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from bess_bc.engine import build_cashflow_table, compute_summary
+from bess_bc.finance import excel_npv
 from bess_bc.inputs import BessInputs
 
 XLSX_PATH = pathlib.Path(__file__).resolve().parent.parent / "Business CasecSolar PV and BESS.xlsx"
@@ -36,10 +37,16 @@ def main() -> int:
     df = build_cashflow_table(inp)
     summary = compute_summary(df, inp)
 
+    # The source workbook's NPV uses Excel's =NPV() convention (discounts every
+    # value, including year 0, by one extra period). The tool's reported NPV
+    # is the standard convention, so we reproduce the Excel convention here
+    # from the raw cash flows purely to validate against the cached Excel value.
+    npv_excel_convention = excel_npv(inp.wacc_pct, df["gross_profit_nominal"].tolist())
+
     checks = [
         ("Payback (years)", summary.payback_years, expected_payback, 1e-4),
         ("IRR", summary.irr, expected_irr, 1e-6),
-        ("NPV (excel convention)", summary.npv_excel, expected_npv, 1e-6),
+        ("NPV (Excel convention, for validation only)", npv_excel_convention, expected_npv, 1e-6),
         ("Cumulative cash flow @ year 20", df["cumulative_cash_flow"].iloc[20], expected_plateau_20, 1e-6),
         ("Cumulative cash flow @ year 40", df["cumulative_cash_flow"].iloc[40], expected_plateau_40, 1e-6),
     ]
