@@ -23,9 +23,12 @@ def build_cashflow_table(inp: BessInputs) -> pd.DataFrame:
     years = list(range(horizon + 1))
     soh = soh_series(inp.bess_lifetime_years, inp.include_degradation, horizon)
 
-    capex_cost0 = -(inp.bess_duration_hours * inp.bess_capex_eur_per_mwh * inp.bess_size_mw) * (
-        1 - inp.debt_share_pct
-    )
+    # balance_of_plant_eur_per_mwh is an extension (default 0): capitalized
+    # alongside the core BESS capex, same €/MWh basis and depreciation
+    # treatment via capex_basis below.
+    capex_cost0 = -(
+        inp.bess_duration_hours * (inp.bess_capex_eur_per_mwh + inp.balance_of_plant_eur_per_mwh) * inp.bess_size_mw
+    ) * (1 - inp.debt_share_pct)
     grid_cost0 = -(
         (inp.grid_fee_consumption_eur_per_mw + inp.grid_fee_production_eur_per_mw) * inp.bess_size_mw
         - inp.substation_contribution_eur
@@ -55,14 +58,25 @@ def build_cashflow_table(inp: BessInputs) -> pd.DataFrame:
     gross_profit_real[0] = revenue[0] + costs[0]
 
     for year in range(1, horizon + 1):
-        revenue[year] = inp.spread_capture_price_eur_per_mwh * 365 * soh[year] * inp.bess_size_mw
+        # cycles_per_year > 0 opts into the measured-data revenue model
+        # (trading_profit_eur_per_cycle * cycles_per_year) in place of the
+        # source workbook's flat spread_capture_price_eur_per_mwh * 365
+        # assumption - see the field comments in inputs.py.
+        if inp.cycles_per_year > 0:
+            revenue[year] = inp.trading_profit_eur_per_cycle * inp.cycles_per_year * soh[year]
+        else:
+            revenue[year] = inp.spread_capture_price_eur_per_mwh * 365 * soh[year] * inp.bess_size_mw
         opex_cost[year] = (
             -inp.bess_opex_eur_per_mwh_year * inp.bess_duration_hours * inp.bess_size_mw
             if soh[year] != 0
             else 0.0
         )
+        # land_lease_eur_per_year/insurance_eur_per_year are extensions
+        # (default 0), applied the same way as the recurring grid fee.
+        land_lease_cost = -inp.land_lease_eur_per_year if soh[year] != 0 else 0.0
+        insurance_cost = -inp.insurance_eur_per_year if soh[year] != 0 else 0.0
         grid_cost[year] = -inp.fixed_yearly_grid_fee_eur_per_mw_year if soh[year] != 0 else 0.0
-        costs[year] = opex_cost[year] + grid_cost[year]
+        costs[year] = opex_cost[year] + land_lease_cost + insurance_cost + grid_cost[year]
         operational_profit[year] = revenue[year] + costs[year]
         profit_share[year] = -inp.profit_share_pct * operational_profit[year]
 
@@ -109,6 +123,27 @@ def build_cashflow_table(inp: BessInputs) -> pd.DataFrame:
         index=years,
     )
     df.index.name = "year"
+
+    # Extension (default off): the battery's lifetime is considered ended
+    # the moment SoH reaches zero, so trim the table to the last year with
+    # *nonzero* SoH rather than always returning the full horizon_years
+    # ceiling - every dropped year's revenue/costs are identically zero
+    # anyway (see the loop above), so NPV/IRR/cumulative cash flow are
+    # unaffected either way, only the row count changes. Floored at
+    # debt_term_years when there's outstanding debt, so a loan that
+    # happens to outlive the battery doesn't get its remaining repayments
+    # silently dropped. Attrs are set after trimming (not before) since
+    # not every pandas version reliably propagates .attrs through .iloc.
+    if inp.truncate_at_full_degradation:
+        try:
+            zero_soh_year = next(y for y in years if y > 0 and soh[y] == 0)
+            end_year = zero_soh_year - 1
+        except StopIteration:
+            end_year = years[-1]
+        if inp.debt_share_pct > 0:
+            end_year = max(end_year, min(inp.debt_term_years, years[-1]))
+        df = df.iloc[: end_year + 1].copy()
+
     df.attrs["capex_cost0"] = capex_cost0
     df.attrs["grid_cost0"] = grid_cost0
     df.attrs["capex_basis"] = capex_basis
@@ -133,7 +168,10 @@ def compute_summary(df: pd.DataFrame, inp: BessInputs) -> Summary:
 
     payback_years: Optional[float] = None
     payback_label = "No payback"
-    for year in range(1, inp.horizon_years + 1):
+    # len(df) rather than inp.horizon_years + 1: identical when df wasn't
+    # truncated (the normal case), but safely bounds the loop when
+    # truncate_at_full_degradation shortened the table.
+    for year in range(1, len(df)):
         if cum.iloc[year] >= 0:
             prior_deficit = -cum.iloc[year - 1]
             payback_years = (year - 1) + prior_deficit / nominal.iloc[year]

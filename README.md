@@ -96,10 +96,13 @@ Run `python3 -m bess_bc.cli --help` for the full list of flags — there is one
 | `--bess-lifetime-years` | `bess_lifetime_years` | 20 | Years before the battery is fully degraded / retired (no replacement modeled) |
 | `--bess-capex-eur-per-mwh` | `bess_capex_eur_per_mwh` | 160,000 | Capex rate, €/MWh of energy capacity |
 | `--bess-opex-eur-per-mwh-year` | `bess_opex_eur_per_mwh_year` | 2,300 | Annual opex rate, €/MWh-year |
+| `--balance-of-plant-eur-per-mwh` | `balance_of_plant_eur_per_mwh` | 0 | *Extension.* Ancillary civil/electrical works, €/MWh — capitalized and depreciated alongside `bess_capex_eur_per_mwh` |
 | `--grid-fee-consumption-eur-per-mw` | `grid_fee_consumption_eur_per_mw` | 100,000 | One-off year-0 grid connection fee, €/MW |
 | `--grid-fee-production-eur-per-mw` | `grid_fee_production_eur_per_mw` | 0 | One-off year-0 grid fee, €/MW |
 | `--substation-contribution-eur` | `substation_contribution_eur` | 0 | One-off year-0 credit against grid fees, € |
 | `--fixed-yearly-grid-fee-eur-per-mw-year` | `fixed_yearly_grid_fee_eur_per_mw_year` | 7,106 | Recurring annual grid fee, € (flat amount — see note below) |
+| `--land-lease-eur-per-year` | `land_lease_eur_per_year` | 0 | *Extension.* Recurring annual site lease cost, € |
+| `--insurance-eur-per-year` | `insurance_eur_per_year` | 0 | *Extension.* Recurring annual insurance cost, € |
 | `--inflation-pct` | `inflation_pct` | 0.02 | Annual inflation, applied to nominalize the cash flow |
 | `--include-degradation` / `--no-include-degradation` | `include_degradation` | on | Whether the battery follows the SoH degradation curve or runs at 100% for its full lifetime |
 | `--profit-share-pct` | `profit_share_pct` | 0.05 | Share of operational profit paid to a route-to-market optimizer |
@@ -109,8 +112,24 @@ Run `python3 -m bess_bc.cli --help` for the full list of flags — there is one
 | `--wacc-pct` | `wacc_pct` | 0.05 | Discount rate used for NPV |
 | `--tax-pct` | `tax_pct` | 0.0 | Corporate tax rate |
 | `--depreciation-rate-pct` | `depreciation_rate_pct` | 0.15 | Cap on the declining-balance annual depreciation rate |
-| `--spread-capture-price-eur-per-mwh` | `spread_capture_price_eur_per_mwh` | 168.0 | Flat trading spread capture price, €/MWh (never escalated by inflation) |
+| `--spread-capture-price-eur-per-mwh` | `spread_capture_price_eur_per_mwh` | 168.0 | Flat trading spread capture price, €/MWh (never escalated by inflation) — used as the revenue driver only when `cycles_per_year` is left at 0 |
+| `--trading-profit-eur-per-cycle` | `trading_profit_eur_per_cycle` | 0 | *Extension.* Measured trading profit per cycle, € — used with `cycles_per_year` in place of the spread-price formula |
+| `--cycles-per-year` | `cycles_per_year` | 0 | *Extension.* Measured cycles/year. When > 0, revenue is `trading_profit_eur_per_cycle * cycles_per_year * soh[year]` instead of the spread-price formula |
 | `--horizon-years` | `horizon_years` | 40 | Modeling horizon in years (0..N) |
+| `--truncate-at-full-degradation` / `--no-truncate-at-full-degradation` | `truncate_at_full_degradation` | off | *Extension.* When on, the returned table stops the year before SoH first reaches zero instead of always running to `horizon_years` |
+
+### A note on "Extension" fields
+
+Fields marked *Extension* above aren't part of the source workbook's BC tab -
+they were added for callers with real measured trading data (e.g. from a
+BESS dispatch simulation) instead of the workbook's flat assumed spread
+price, plus a couple of additional cost line items and an option to stop
+the table once the battery is fully degraded rather than always running
+the full horizon. Every one of them defaults to a value that reproduces
+the original BC-tab formulas exactly - `tests/test_extensions.py` covers
+what changes once you opt into them; `tests/test_validate_defaults.py` and
+`scripts/validate_against_excel.py` (the Excel cross-check) are unaffected
+either way, since they only ever exercise the defaults.
 
 ## Outputs
 
@@ -196,5 +215,6 @@ bess_bc/
 scripts/
 └── validate_against_excel.py   # Cross-checks output against the source .xlsx
 tests/
-└── test_validate_defaults.py   # pytest suite
+├── test_validate_defaults.py   # Excel-validated defaults, pytest suite
+└── test_extensions.py          # Coverage for the opt-in "Extension" fields
 ```
