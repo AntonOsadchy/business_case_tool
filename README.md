@@ -97,8 +97,7 @@ Run `python3 -m bess_bc.cli --help` for the full list of flags — there is one
 | `--bess-capex-eur-per-mwh` | `bess_capex_eur_per_mwh` | 160,000 | Capex rate, €/MWh of energy capacity |
 | `--bess-opex-eur-per-mwh-year` | `bess_opex_eur_per_mwh_year` | 2,300 | Annual opex rate, €/MWh-year |
 | `--balance-of-plant-eur-per-mwh` | `balance_of_plant_eur_per_mwh` | 0 | *Extension.* Ancillary civil/electrical works, €/MWh — capitalized and depreciated alongside `bess_capex_eur_per_mwh` |
-| `--grid-fee-consumption-eur-per-mw` | `grid_fee_consumption_eur_per_mw` | 100,000 | One-off year-0 grid connection fee, €/MW |
-| `--grid-fee-production-eur-per-mw` | `grid_fee_production_eur_per_mw` | 0 | One-off year-0 grid fee, €/MW |
+| `--grid-fee-eur-per-mw` | `grid_fee_eur_per_mw` | 100,000 | One-off year-0 grid connection fee, €/MW (combines what were originally separate consumption/production fee inputs) |
 | `--substation-contribution-eur` | `substation_contribution_eur` | 0 | One-off year-0 credit against grid fees, € |
 | `--fixed-yearly-grid-fee-eur-per-mw-year` | `fixed_yearly_grid_fee_eur_per_mw_year` | 7,106 | Recurring annual grid fee, € (flat amount — see note below) |
 | `--land-lease-eur-per-year` | `land_lease_eur_per_year` | 0 | *Extension.* Recurring annual site lease cost, € |

@@ -30,8 +30,7 @@ def build_cashflow_table(inp: BessInputs) -> pd.DataFrame:
         inp.bess_duration_hours * (inp.bess_capex_eur_per_mwh + inp.balance_of_plant_eur_per_mwh) * inp.bess_size_mw
     ) * (1 - inp.debt_share_pct)
     grid_cost0 = -(
-        (inp.grid_fee_consumption_eur_per_mw + inp.grid_fee_production_eur_per_mw) * inp.bess_size_mw
-        - inp.substation_contribution_eur
+        inp.grid_fee_eur_per_mw * inp.bess_size_mw - inp.substation_contribution_eur
     ) * (1 - inp.debt_share_pct)
     costs0 = capex_cost0 + grid_cost0
 

@@ -31,9 +31,13 @@ class BessInputs:
     # bess_capex_eur_per_mwh (default 0 - no effect unless set).
     balance_of_plant_eur_per_mwh: float = 0.0
 
-    # Grid connection (BC!D19:D22)
-    grid_fee_consumption_eur_per_mw: float = 100_000.0
-    grid_fee_production_eur_per_mw: float = 0.0
+    # Grid connection (BC!D19:D22). Originally split into
+    # grid_fee_consumption_eur_per_mw + grid_fee_production_eur_per_mw
+    # (BC!D19/D20); combined into one field since callers now source a
+    # single already-combined per-MW connection fee - default is the sum
+    # of those two original defaults (100,000 + 0), so this reproduces the
+    # original BC-tab formula exactly.
+    grid_fee_eur_per_mw: float = 100_000.0
     substation_contribution_eur: float = 0.0
     fixed_yearly_grid_fee_eur_per_mw_year: float = 7_106.0
 
