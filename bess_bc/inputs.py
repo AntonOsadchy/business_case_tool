@@ -26,10 +26,6 @@ class BessInputs:
     bess_lifetime_years: int = 20
     bess_capex_eur_per_mwh: float = 160_000.0
     bess_opex_eur_per_mwh_year: float = 2_300.0
-    # Extension: ancillary civil/electrical works beyond the core BESS
-    # units, capitalized and depreciated the same way as
-    # bess_capex_eur_per_mwh (default 0 - no effect unless set).
-    balance_of_plant_eur_per_mwh: float = 0.0
 
     # Grid connection (BC!D19:D22). Originally split into
     # grid_fee_consumption_eur_per_mw + grid_fee_production_eur_per_mw
@@ -38,14 +34,25 @@ class BessInputs:
     # of those two original defaults (100,000 + 0), so this reproduces the
     # original BC-tab formula exactly.
     grid_fee_eur_per_mw: float = 100_000.0
-    substation_contribution_eur: float = 0.0
+    # Extension: catch-all one-time cost scaled by MW (like
+    # grid_fee_eur_per_mw), consolidating what were previously two
+    # separate fields - transformer_eur_per_mw (MV-to-HV transformer,
+    # itself originally substation_contribution_eur, a flat-€ *credit*;
+    # renamed/rescaled since a transformer is a real cost) and
+    # balance_of_plant_eur_per_mwh (ancillary civil/electrical works,
+    # previously scaled by MWh). Both are now folded into this single
+    # €/MW figure (default 0, matching both predecessors' defaults, so
+    # this doesn't change the original BC-tab defaults).
+    other_capex_eur_per_mw: float = 0.0
     fixed_yearly_grid_fee_eur_per_mw_year: float = 7_106.0
 
-    # Extension: additional recurring yearly costs, applied the same way
-    # as fixed_yearly_grid_fee_eur_per_mw_year (zeroed once the battery is
-    # fully degraded). Both default 0 - no effect unless set.
-    land_lease_eur_per_year: float = 0.0
-    insurance_eur_per_year: float = 0.0
+    # Extension: catch-all recurring yearly cost, €/MWh of energy capacity
+    # (scaled the same way as bess_opex_eur_per_mwh_year), zeroed once the
+    # battery is fully degraded - consolidates what were previously two
+    # separate flat-€/year fields, land_lease_eur_per_year and
+    # insurance_eur_per_year (default 0, matching both predecessors'
+    # defaults, so this doesn't change the original BC-tab defaults).
+    other_opex_eur_per_mwh_year: float = 0.0
 
     # Financial / macro (BC!D24:D34)
     inflation_pct: float = 0.02

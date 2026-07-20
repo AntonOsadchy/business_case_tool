@@ -23,14 +23,14 @@ def build_cashflow_table(inp: BessInputs) -> pd.DataFrame:
     years = list(range(horizon + 1))
     soh = soh_series(inp.bess_lifetime_years, inp.include_degradation, horizon)
 
-    # balance_of_plant_eur_per_mwh is an extension (default 0): capitalized
-    # alongside the core BESS capex, same €/MWh basis and depreciation
-    # treatment via capex_basis below.
     capex_cost0 = -(
-        inp.bess_duration_hours * (inp.bess_capex_eur_per_mwh + inp.balance_of_plant_eur_per_mwh) * inp.bess_size_mw
+        inp.bess_duration_hours * inp.bess_capex_eur_per_mwh * inp.bess_size_mw
     ) * (1 - inp.debt_share_pct)
+    # other_capex_eur_per_mw is an extension (default 0): a catch-all €/MW
+    # one-time cost (MV-to-HV transformer, balance of plant, etc.), added
+    # alongside the grid fee and depreciated via capex_basis below.
     grid_cost0 = -(
-        inp.grid_fee_eur_per_mw * inp.bess_size_mw - inp.substation_contribution_eur
+        (inp.grid_fee_eur_per_mw + inp.other_capex_eur_per_mw) * inp.bess_size_mw
     ) * (1 - inp.debt_share_pct)
     costs0 = capex_cost0 + grid_cost0
 
@@ -70,12 +70,15 @@ def build_cashflow_table(inp: BessInputs) -> pd.DataFrame:
             if soh[year] != 0
             else 0.0
         )
-        # land_lease_eur_per_year/insurance_eur_per_year are extensions
-        # (default 0), applied the same way as the recurring grid fee.
-        land_lease_cost = -inp.land_lease_eur_per_year if soh[year] != 0 else 0.0
-        insurance_cost = -inp.insurance_eur_per_year if soh[year] != 0 else 0.0
+        # other_opex_eur_per_mwh_year is an extension (default 0), scaled
+        # by energy capacity like bess_opex_eur_per_mwh_year above.
+        other_opex_cost = (
+            -inp.other_opex_eur_per_mwh_year * inp.bess_duration_hours * inp.bess_size_mw
+            if soh[year] != 0
+            else 0.0
+        )
         grid_cost[year] = -inp.fixed_yearly_grid_fee_eur_per_mw_year if soh[year] != 0 else 0.0
-        costs[year] = opex_cost[year] + land_lease_cost + insurance_cost + grid_cost[year]
+        costs[year] = opex_cost[year] + other_opex_cost + grid_cost[year]
         operational_profit[year] = revenue[year] + costs[year]
         profit_share[year] = -inp.profit_share_pct * operational_profit[year]
 

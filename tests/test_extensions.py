@@ -1,6 +1,6 @@
 """Tests for the extension fields added on top of the source workbook's own
 BC-tab model (see the "Extension" field comments in bess_bc/inputs.py):
-cycle-based revenue, balance of plant, land lease/insurance, and
+cycle-based revenue, other capex, other opex, and
 truncate_at_full_degradation. Each one defaults to a no-op value, so
 tests/test_validate_defaults.py's Excel-validated defaults stay exact -
 these tests instead cover what happens once a caller opts in.
@@ -42,27 +42,29 @@ def test_cycle_based_revenue_equivalent_to_spread_price_gives_same_summary():
     assert base_df["revenue"].tolist() == equivalent_df["revenue"].tolist()
 
 
-def test_balance_of_plant_adds_to_capex():
+def test_other_capex_adds_to_grid_cost_and_capex_basis():
     base = BessInputs()
-    with_bop = BessInputs(balance_of_plant_eur_per_mwh=10_000.0)
+    with_other = BessInputs(other_capex_eur_per_mw=10_000.0)
 
     base_df = build_cashflow_table(base)
-    bop_df = build_cashflow_table(with_bop)
+    other_df = build_cashflow_table(with_other)
 
-    extra_capex = with_bop.bess_duration_hours * with_bop.balance_of_plant_eur_per_mwh * with_bop.bess_size_mw
-    assert math.isclose(bop_df.attrs["capex_cost0"], base_df.attrs["capex_cost0"] - extra_capex)
-    assert math.isclose(bop_df.attrs["capex_basis"], base_df.attrs["capex_basis"] + extra_capex)
+    extra_capex = with_other.other_capex_eur_per_mw * with_other.bess_size_mw
+    assert math.isclose(other_df.attrs["grid_cost0"], base_df.attrs["grid_cost0"] - extra_capex)
+    assert math.isclose(other_df.attrs["capex_basis"], base_df.attrs["capex_basis"] + extra_capex)
 
 
-def test_land_lease_and_insurance_reduce_yearly_costs_until_degraded():
+def test_other_opex_reduces_yearly_costs_until_degraded():
     base = BessInputs()
-    with_extra = BessInputs(land_lease_eur_per_year=5_000.0, insurance_eur_per_year=3_000.0)
+    with_extra = BessInputs(other_opex_eur_per_mwh_year=1_500.0)
 
     base_df = build_cashflow_table(base)
     extra_df = build_cashflow_table(with_extra)
 
-    # Year 1: battery is operating (soh > 0), so both extra costs apply.
-    assert math.isclose(extra_df["costs"].iloc[1], base_df["costs"].iloc[1] - 5_000.0 - 3_000.0)
+    # Year 1: battery is operating (soh > 0), so the extra cost applies,
+    # scaled by energy capacity like bess_opex_eur_per_mwh_year.
+    extra_cost = with_extra.other_opex_eur_per_mwh_year * with_extra.bess_duration_hours * with_extra.bess_size_mw
+    assert math.isclose(extra_df["costs"].iloc[1], base_df["costs"].iloc[1] - extra_cost)
     # Once the battery is fully degraded (soh == 0), no cost applies -
     # matches how the existing grid fee already behaves once retired.
     zero_soh_year = next(y for y in range(1, len(base_df)) if base_df["soh"].iloc[y] == 0)
